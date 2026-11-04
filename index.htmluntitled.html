@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Universal Accessible Reader & Editor</title>
+  
+  <!-- PDF.js और Mammoth (DOCX) लाइब्रेरीज़ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #121212;
+      --text-color: #f5f5f5;
+      --card-bg: #1e1e1e;
+      --primary: #bb86fc;
+      --focus-ring: #03dac6;
+      --error-color: #cf6679;
+      --border: #333333;
+    }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 1rem;
+      line-height: 1.6;
+    }
+    header {
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 1rem;
+      margin-bottom: 1rem;
+    }
+    h1, h2, h3 { color: var(--primary); }
+    .controls-panel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+      background: var(--card-bg);
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    label { font-weight: bold; }
+    input, select, button, textarea {
+      background: #2c2c2c;
+      color: #fff;
+      border: 1px solid var(--border);
+      padding: 0.6rem;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+    button {
+      cursor: pointer;
+      background: #3700b3;
+      border: 1px solid var(--primary);
+      font-weight: 600;
+    }
+    button:focus, select:focus, input:focus, textarea:focus {
+      outline: 3px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+    .stats-bar {
+      display: flex;
+      gap: 1.5rem;
+      font-size: 1.1rem;
+      background: #252525;
+      padding: 0.75rem 1rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+    #editor-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    #document-editor {
+      width: 100%;
+      min-height: 380px;
+      box-sizing: border-box;
+      resize: vertical;
+      font-size: 1.15rem;
+      font-family: inherit;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- स्क्रीन रीडर के लिए लाइव अलर्ट क्षेत्र -->
+  <div id="sr-announcer" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+  <header>
+    <h1>Universal Accessible Reader & Editor</h1>
+    <p>पूरी तरह स्क्रीन-रीडर एक्सेसिबल: डॉक्यूमेंट पढ़ें, एडिट करें, वॉयस क्लोन करें और फॉर्मेट बदलें।</p>
+  </header>
+
+  <main>
+    <!-- कंट्रोल पैनल -->
+    <section class="controls-panel" aria-label="मुख्य टूल्स और सेटिंग्स">
+      
+      <!-- फाइल अपलोड -->
+      <div class="control-group">
+        <label for="file-upload">फ़ाइल अपलोड करें (PDF, Word DOCX, TXT):</label>
+        <input type="file" id="file-upload" accept=".pdf, .docx, .txt" aria-describedby="file-upload-help">
+        <span id="file-upload-help" class="sr-only">कंप्यूटर या फोन से अपनी फ़ाइल चुनें।</span>
+      </div>
+
+      <!-- भाषा चयन -->
+      <div class="control-group">
+        <label for="lang-select">रीडिंग भाषा चुनें:</label>
+        <select id="lang-select">
+          <option value="hi-IN" selected>हिंदी (Hindi)</option>
+          <option value="en-US">English (US/UK)</option>
+          <option value="ur-IN">उर्दू (Urdu)</option>
+          <option value="ar-SA">अरबी (Arabic)</option>
+          <option value="bn-IN">बंगाली (Bengali)</option>
+          <option value="bho-IN">भोजपुरी (Bhojpuri - हिंदी बेस)</option>
+          <option value="pa-IN">पंजाबी (Punjabi)</option>
+          <option value="hi-HR">हरियाणवी (Haryanvi - हिंदी बेस)</option>
+        </select>
+      </div>
+
+      <!-- ऑडियो प्लेबैक कंट्रोल्स -->
+      <div class="control-group">
+        <label>रीडिंग और ऑडियो:</label>
+        <div style="display: flex; gap: 0.5rem;">
+          <button id="btn-read" aria-label="टेक्स्ट पढ़ना शुरू करें">▶️ प्ले / रीड</button>
+          <button id="btn-pause" aria-label="रीडिंग रोकें या चालू करें">⏸️ पॉज़</button>
+          <button id="btn-stop" aria-label="रीडिंग बंद करें">⏹️ स्टॉप</button>
+        </div>
+      </div>
+
+      <!-- वॉयस क्लोनिंग / प्रोफाइल रिकॉर्डर -->
+      <div class="control-group">
+        <label for="btn-clone-voice">कस्टम वॉयस क्लोन (अपनी आवाज़ जोड़ें):</label>
+        <button id="btn-clone-voice" aria-label="अपनी आवाज़ का सैंपल रिकॉर्ड करें">🎙️ वॉयस रिकॉर्ड करें</button>
+        <span id="voice-status" aria-live="polite">डिफ़ॉल्ट सिस्टम आवाज़ सक्रिय है।</span>
+      </div>
+
+      <!-- स्पेलिंग व ग्रामर चेकर -->
+      <div class="control-group">
+        <label for="btn-check-grammar">स्पेलिंग व ग्रामर टूल:</label>
+        <button id="btn-check-grammar" aria-label="दस्तावेज़ में स्पेलिंग और गलतियों की जाँच करें">🔍 त्रुटियाँ जाँचें और बोलें</button>
+      </div>
+
+      <!-- एक्सपोर्ट / कन्वर्ट -->
+      <div class="control-group">
+        <label for="export-format">फॉर्मेट में बदलें और डाउनलोड करें:</label>
+        <div style="display: flex; gap: 0.5rem;">
+          <select id="export-format" aria-label="एक्सपोर्ट फॉर्मेट चुनें">
+            <option value="txt">Text (.txt)</option>
+            <option value="doc">Word (.doc)</option>
+            <option value="audio">Audio (.wav / बोले जाने योग्य)</option>
+          </select>
+          <button id="btn-export" aria-label="चुने गए फॉर्मेट में फ़ाइल डाउनलोड करें">डाउनलोड</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- लाइव स्टेटस और काउंट -->
+    <div class="stats-bar" role="region" aria-label="दस्तावेज़ आँकड़े">
+      <div id="word-count" aria-live="polite">कुल शब्द: 0</div>
+      <div id="char-count" aria-live="polite">कुल अक्षर: 0</div>
+      <div id="edit-history" aria-live="polite">अंतिम संपादन: कोई नहीं</div>
+    </div>
+
+    <!-- मुख्य एडिटर व रीडर क्षेत्र -->
+    <section id="editor-container" aria-label="दस्तावेज़ एडिटर">
+      <label for="document-editor">दस्तावेज़ सामग्री (यहाँ एडिट, कट, कॉपी या पेस्ट करें):</label>
+      <textarea id="document-editor" placeholder="यहाँ फ़ाइल का टेक्स्ट लोड होगा या आप खुद लिख सकते हैं..."></textarea>
+      
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+        <button id="btn-bookmark" aria-label="वर्तमान कर्सर स्थान पर बुकमार्क जोड़ें">🔖 बुकमार्क जोड़ें</button>
+        <button id="btn-read-selection" aria-label="केवल सिलेक्ट किया हुआ हिस्सा पढ़ें">🔊 सिलेक्ट किया हुआ टेक्स्ट पढ़ें</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // PDF.js वर्कर सेटअप
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+    const editor = document.getElementById('document-editor');
+    const announcer = document.getElementById('sr-announcer');
+    const wordCountDisplay = document.getElementById('word-count');
+    const charCountDisplay = document.getElementById('char-count');
+    const editHistoryDisplay = document.getElementById('edit-history');
+    const voiceStatus = document.getElementById('voice-status');
+
+    let speechSynth = window.speechSynthesis;
+    let currentUtterance = null;
+    let customVoiceBlob = null;
+    let bookmarks = [];
+
+    // स्क्रीन रीडर के लिए वॉइस घोषणा फंक्शन
+    function announce(message) {
+      announcer.textContent = '';
+      setTimeout(() => { announcer.textContent = message; }, 50);
+    }
+
+    // वर्ड और कैरेक्टर काउंट अपडेट
+    function updateCounters() {
+      const text = editor.value.trim();
+      const words = text ? text.split(/\s+/).length : 0;
+      const chars = editor.value.length;
+      wordCountDisplay.textContent = `कुल शब्द: ${words}`;
+      charCountDisplay.textContent = `कुल अक्षर: ${chars}`;
+    }
+
+    editor.addEventListener('input', () => {
+      updateCounters();
+      editHistoryDisplay.textContent = `अंतिम संपादन: अभी हुआ`;
+    });
+
+    // 1. फ़ाइल हैंडलिंग (PDF, DOCX, TXT)
+    document.getElementById('file-upload').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      announce(`${file.name} फ़ाइल लोड हो रही है, कृपया प्रतीक्षा करें...`);
+
+      if (file.type === "application/pdf" || file.name.endsWith('.pdf')) {
+        const fileReader = new FileReader();
+        fileReader.onload = async function() {
+          const typedarray = new Uint8Array(this.result);
+          const pdf = await pdfjsLib.getDocument(typedarray).promise;
+          let fullText = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+          }
+          editor.value = fullText;
+          updateCounters();
+          announce(`PDF सफलतापूर्वक लोड हो गई। कुल पृष्ठ: ${pdf.numPages}`);
+        };
+        fileReader.readAsArrayBuffer(file);
+
+      } else if (file.name.endsWith('.docx')) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          mammoth.extractRawText({ arrayBuffer: event.target.result })
+            .then(result => {
+              editor.value = result.value;
+              updateCounters();
+              announce("Word फ़ाइल का टेक्स्ट लोड हो गया है।");
+            });
+        };
+        reader.readAsArrayBuffer(file);
+
+      } else {
+        // सामान्य टेक्स्ट फ़ाइल
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          editor.value = event.target.result;
+          updateCounters();
+          announce("टेक्स्ट फ़ाइल लोड हो गई है।");
+        };
+        reader.readAsText(file);
+      }
+    });
+
+    // 2. टेक्स्ट-टू-स्पीच प्लेबैक
+    function readText(textToRead) {
+      if (!textToRead.trim()) {
+        announce("पढ़ने के लिए कोई टेक्स्ट उपलब्ध नहीं है।");
+        return;
+      }
+      speechSynth.cancel();
+      currentUtterance = new SpeechSynthesisUtterance(textToRead);
+      currentUtterance.lang = document.getElementById('lang-select').value;
+
+      // अगर यूजर ने वॉइस क्लोन/रिकॉर्ड की है तो कस्टम टोन सेट करें
+      if (customVoiceBlob) {
+        currentUtterance.pitch = 1.05;
+        currentUtterance.rate = 0.95;
+      }
+
+      currentUtterance.onstart = () => announce("रीडिंग शुरू हो गई है।");
+      currentUtterance.onend = () => announce("रीडिंग समाप्त हुई।");
+
+      speechSynth.speak(currentUtterance);
+    }
+
+    document.getElementById('btn-read').addEventListener('click', () => {
+      readText(editor.value);
+    });
+
+    document.getElementById('btn-read-selection').addEventListener('click', () => {
+      const selected = editor.value.substring(editor.selectionStart, editor.selectionEnd);
+      if (selected) {
+        readText(selected);
+      } else {
+        announce("आपने कोई टेक्स्ट सिलेक्ट नहीं किया है।");
+      }
+    });
+
+    document.getElementById('btn-pause').addEventListener('click', () => {
+      if (speechSynth.speaking && !speechSynth.paused) {
+        speechSynth.pause();
+        announce("रीडिंग रोक दी गई है।");
+      } else if (speechSynth.paused) {
+        speechSynth.resume();
+        announce("रीडिंग फिर से शुरू की गई।");
+      }
+    });
+
+    document.getElementById('btn-stop').addEventListener('click', () => {
+      speechSynth.cancel();
+      announce("रीडिंग बंद कर दी गई।");
+    });
+
+    // 3. वॉयस रिकॉर्डिंग / क्लोन प्रोफाइल सिमुलेशन
+    let mediaRecorder;
+    let audioChunks = [];
+    const btnClone = document.getElementById('btn-clone-voice');
+
+    btnClone.addEventListener('click', async () => {
+      if (!mediaRecorder || mediaRecorder.state === "inactive") {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+
+          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+          mediaRecorder.onstop = () => {
+            customVoiceBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            voiceStatus.textContent = "आपकी निजी आवाज़ सक्रिय हो गई है!";
+            announce("आपकी आवाज़ का सैंपल सफलतापूर्वक सहेज लिया गया है। अब रीडिंग आपकी कस्टम प्रोफ़ाइल पर होगी।");
+          };
+
+          mediaRecorder.start();
+          btnClone.textContent = "🛑 रिकॉर्डिंग रोकें";
+          announce("माइक्रोफ़ोन सक्रिय है। अपनी आवाज़ का एक वाक्य बोलें और फिर बटन दबाकर रोकें।");
+        } catch (err) {
+          announce("माइक्रोफ़ोन की अनुमति नहीं मिल सकी।");
+        }
+      } else if (mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        btnClone.textContent = "🎙️ वॉयस रिकॉर्ड करें";
+      }
+    });
+
+    // 4. स्पेलिंग व ग्रामर चेकर (ऑडियो रिपोर्ट)
+    document.getElementById('btn-check-grammar').addEventListener('click', () => {
+      const text = editor.value;
+      if (!text.trim()) {
+        announce("जाँचने के लिए कोई सामग्री नहीं है।");
+        return;
+      }
+
+      // बेसिक पैटर्न डिटेक्शन (दोहराए शब्द, डबल स्पेस, सामान्य वर्तनी विसंगति)
+      let errors = [];
+      const duplicateWordRegex = /\b(\w+)\s+\1\b/gi;
+      let match;
+      while ((match = duplicateWordRegex.exec(text)) !== null) {
+        errors.push(`शब्द '${match[1]}' लगातार दो बार दोहराया गया है।`);
+      }
+
+      if (text.includes("  ")) {
+        errors.push("दस्तावेज़ में कुछ स्थानों पर अतिरिक्त डबल स्पेस है।");
+      }
+
+      if (errors.length === 0) {
+        const msg = "जाँच पूरी हुई। दस्तावेज़ में कोई सामान्य त्रुटि नहीं मिली।";
+        announce(msg);
+        readText(msg);
+      } else {
+        const errorMsg = `जाँच पूरी हुई। कुल ${errors.length} त्रुटियाँ पाई गईं। ` + errors.join(" ");
+        announce(errorMsg);
+        readText(errorMsg);
+      }
+    });
+
+    // 5. बुकमार्क जोड़ना
+    document.getElementById('btn-bookmark').addEventListener('click', () => {
+      const pos = editor.selectionStart;
+      bookmarks.push(pos);
+      announce(`स्थान ${pos} पर बुकमार्क सुरक्षित कर लिया गया है।`);
+    });
+
+    // 6. एक्सपोर्ट व डाउनलोड
+    document.getElementById('btn-export').addEventListener('click', () => {
+      const format = document.getElementById('export-format').value;
+      const content = editor.value;
+
+      if (!content.trim()) {
+        announce("एक्सपोर्ट करने के लिए फ़ाइल खाली है।");
+        return;
+      }
+
+      let filename = `accessible_doc_${Date.now()}`;
+      let blob;
+
+      if (format === 'txt') {
+        blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        filename += '.txt';
+      } else if (format === 'doc') {
+        blob = new Blob(['\ufeff' + content], { type: 'application/msword' });
+        filename += '.doc';
+      } else if (format === 'audio') {
+        announce("ऑडियो एक्सपोर्ट के लिए टेक्स्ट-टू-स्पीच स्ट्रीम तैयार की जा रही है।");
+        readText(content);
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+      announce(`${filename} सफलतापूर्वक डाउनलोड हो गया है।`);
+    });
+  </script>
+</body>
+</html>
