@@ -1,27 +1,11 @@
-import React, useState; from 'react';
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+  const [selectedText, setSelectedText] = useState('');
+  const [convertedAudio, setConvertedAudio] = useState(null);
 
-export default function App() {
-  const [currentLanguage, setCurrentLanguage] = useState('Hindi');
+  const handleDocumentPick = async () => {
+    setSelectedText("Sample text extracted from document.");
+  };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Multimodal Reader</Text>
-        <TouchableOpacity onPress={() => setCurrentLanguage(prev => prev === 'Hindi' ? 'English' : 'Hindi')}>
-          <Text style={styles.langButton}>
-            Switch to {currentLanguage === 'Hindi' ? 'English' : 'Hindi'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { padding: 25, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 22, fontWeight: 'bold' },
-  langButton: { color: 'blue', fontSize: 18 },
-});
+  const handleTextConversion = async (text) => {
+    console.log("Converting text up to 100k words...");
+  };
 
