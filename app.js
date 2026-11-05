@@ -1,56 +1,75 @@
-import React, useState; from 'react';
-import { Button, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+
+```jsx
+import React, { useState } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Speech from 'expo-speech';
+import { SafeAreaView, View, Text, TextInput, Button, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 
 export default function App() {
   const [currentLanguage, setCurrentLanguage] = useState('Hindi');
   const [selectedText, setSelectedText] = useState('');
-  const [convertedAudio, setConvertedAudio] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [def, setDefinition] = useState('');
 
-  const handleDocumentPick = async () => {
-    setSelectedText("Sample text extracted from document.");
+  const handleDocumentPick = async () =&gt; {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: 'text/*' });
+      if (!res.canceled &amp;&amp; res.assets[0]) {
+        setSelectedText(res.assets[0].name);
+      }
+    } catch (err) {
+      console.error('Error picking document:', err);
+    }
   };
 
-  const handleTextConversion = async (text) => {
-    console.log("Converting text up to 100k words...");
+  const handleTextConversion = async (text) =&gt; {
+    try {
+      const thingToSay = text || "Sample text to read aloud.";
+      await Speech.speak(thingToSay, {
+        language: currentLanguage === 'Hindi' ? 'hi-IN' : 'en-US',
+      });
+    } catch (e) {
+      console.error("Speech error", e);
+    }
   };
 
-  const handleSearch = () => {
-    setDefinition(`Definition for ${searchQuery}: Sample meaning.`);
+  const handleSearch = () =&gt; {
+    if (!searchQuery.trim()) return;
+    setDefinition(`Definition for ${searchQuery}: Sample meaning pulled from dictionary.`);
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Multimodal Reader</Text>
-        <TouchableOpacity onPress={() => setCurrentLanguage(prev => prev === 'Hindi' ? 'English' : 'Hindi')}>
-          <Text style={styles.langButton}>
+    &lt;SafeAreaView style={styles.container}&gt;
+      &lt;View style={styles.header}&gt;
+        &lt;Text style={styles.title}&gt;Multimodal Reader&lt;/Text&gt;
+        &lt;TouchableOpacity onPress={() =&gt; setCurrentLanguage(prev =&gt; prev === 'Hindi' ? 'English' : 'Hindi')}&gt;
+          &lt;Text style={styles.langButton}&gt;
             Switch to {currentLanguage === 'Hindi' ? 'English' : 'Hindi'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Button title="Pick Document" onPress={handleDocumentPick} />
+          &lt;/Text&gt;
+        &lt;/TouchableOpacity&gt;
+      &lt;/View&gt;
+      &lt;ScrollView contentContainerStyle={styles.content}&gt;
+        &lt;Button title="Pick Document" onPress={handleDocumentPick} /&gt;
         {selectedText ? (
-          <View>
-            <Text style={styles.label}>Extracted Text:</Text>
-            <Text>{selectedText}</Text>
-            <Button title="Convert to Audio" onPress={() => handleTextConversion(selectedText)} />
-          </View>
+          &lt;View&gt;
+            &lt;Text style={styles.label}&gt;Extracted Text / File:&lt;/Text&gt;
+            &lt;Text&gt;{selectedText}&lt;/Text&gt;
+            &lt;Button title="Convert to Audio" onPress={() =&gt; handleTextConversion(selectedText)} /&gt;
+          &lt;/View&gt;
         ) : null}
-        <View style={styles.searchSection}>
-          <TextInput
+        &lt;View style={styles.searchSection}&gt;
+          &lt;TextInput
             style={styles.input}
             placeholder="Search dictionary..."
             value={searchQuery}
             onChangeText={setSearchQuery}
-          />
-          <Button title="Search" onPress={handleSearch} />
-          {def ? <Text style={styles.def}>{def}</Text> : null}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+          /&gt;
+          &lt;Button title="Search" onPress={handleSearch} /&gt;
+          {def ? &lt;Text style={styles.def}&gt;{def}&lt;/Text&gt; : null}
+        &lt;/View&gt;
+      &lt;/ScrollView&gt;
+    &lt;/SafeAreaView&gt;
   );
 }
 
@@ -65,4 +84,4 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: '#ccc', padding: 10, marginBottom: 10 },
   def: { marginTop: 10, fontStyle: 'italic' },
 });
-
+```
